@@ -61,6 +61,8 @@ export const AboutView: React.FC<AboutViewProps> = ({ onNavigate, onOpenConsulta
             src="/assets/images/damian_romero_headshot.jpg"
             alt="Damian Romero, Founder & Creative Director of Auvryn Studios"
             className="w-32 h-36 rounded-2xl object-cover border border-white/25 shadow-2xl mb-4"
+            loading="lazy"
+            decoding="async"
           />
           <h3 className="text-xl font-semibold text-white">Damian Romero</h3>
           <span className="font-mono text-xs uppercase tracking-[0.16em] text-white/60 mt-0.5">

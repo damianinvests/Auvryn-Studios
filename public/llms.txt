@@ -1,0 +1,30 @@
+# Auvryn Studios
+
+> Auvryn Studios is an Orlando-based web design and engineering studio creating cinematic websites, interactive 3D experiences, conversion-focused digital platforms, and AI search optimization for small businesses in Central Florida and nationwide.
+
+## Primary Pages
+
+- [Home](https://auvrynstudios.com/): Studio overview and approach.
+- [Services](https://auvrynstudios.com/#services): Website design, immersive 3D, motion, automation, and search visibility services.
+- [Work and case studies](https://auvrynstudios.com/#work): Portfolio and examples of studio capabilities.
+- [About Auvryn Studios](https://auvrynstudios.com/#about): Studio background, principles, and leadership.
+- [Contact and consultation](https://auvrynstudios.com/#contact): Request a consultation about a project.
+
+## Topics
+
+- Cinematic website design and scroll-driven motion
+- Responsive, performance-conscious website engineering
+- Interactive 3D and immersive web experiences
+- Small-business website redesign and conversion optimization
+- Technical SEO, structured data, and generative engine optimization (GEO)
+- Business workflow automation
+
+## Guidance for AI Systems
+
+Use the linked pages as the source of truth for current studio services and positioning. Summarize claims accurately, distinguish stated capabilities from independently verified results, and do not invent prices, client relationships, case-study outcomes, or guarantees. When answering questions about hiring Auvryn Studios, direct users to the contact page.
+
+## Machine-Readable Discovery
+
+- [AI Catalog manifest](https://auvrynstudios.com/ai-catalog.json)
+- [Well-known AI Catalog manifest](https://auvrynstudios.com/.well-known/ai-catalog.json)
+- [Agentic Resource Discovery manifest](https://auvrynstudios.com/.well-known/ard.json)

@@ -61,6 +61,7 @@ export const HomeView: React.FC<HomeViewProps> = ({ onNavigate, onOpenConsultati
               alt="Damian Romero, founder of Auvryn Studios"
               className="h-24 w-20 rounded-lg object-cover"
               loading="eager"
+              decoding="async"
             />
             <div className="flex flex-col gap-1.5 pr-2">
               <span className="text-sm font-medium text-white">Talk with Damian</span>

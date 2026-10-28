@@ -57,6 +57,8 @@ export const BlogDetailView: React.FC<BlogDetailViewProps> = ({
               src="/assets/images/damian_romero_headshot.jpg"
               alt="Damian Romero"
               className="w-8 h-8 rounded-full object-cover border border-white/30"
+              loading="lazy"
+              decoding="async"
             />
             <div>
               <div className="text-white font-medium">{blog.author}</div>
@@ -184,6 +186,8 @@ export const BlogDetailView: React.FC<BlogDetailViewProps> = ({
           src="/assets/images/damian_romero_headshot.jpg"
           alt="Damian Romero"
           className="w-12 h-12 rounded-full object-cover border border-white/30 flex-shrink-0"
+          loading="lazy"
+          decoding="async"
         />
         <div className="text-xs text-white/70 leading-relaxed">
           <span className="text-white font-medium text-sm block">Written by {blog.author}</span>
