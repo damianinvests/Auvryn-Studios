@@ -1,0 +1,46 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "Auvryn Studios",
+    "documentationUrl": "https://auvrynstudios.com/",
+    "description": "Public website resources describing Auvryn Studios, its web design services, and portfolio."
+  },
+  "entries": [
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      "identifier": "urn:air:auvrynstudios.com:website:home",
+      "displayName": "Auvryn Studios Website",
+      "type": "text/html",
+      "url": "https://auvrynstudios.com/",
+      "description": "Official public website for Auvryn Studios, an Orlando-based cinematic web design and engineering studio.",
+      "representativeQueries": [
+        "What is Auvryn Studios and what services does it offer?",
+        "How can I contact Auvryn Studios about a website project?"
+      ]
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      "identifier": "urn:air:auvrynstudios.com:website:services",
+      "displayName": "Auvryn Studios Services",
+      "type": "text/html",
+      "url": "https://auvrynstudios.com/#services",
+      "description": "Public information about Auvryn Studios' website design, immersive web, motion, automation, and search visibility services.",
+      "representativeQueries": [
+        "What website design and development services does Auvryn Studios provide?",
+        "Does Auvryn Studios build cinematic or interactive 3D websites?"
+      ]
+    },
+    {
+      "@context": "https://agenticresourcediscovery.org/context/v1",
+      "identifier": "urn:air:auvrynstudios.com:website:portfolio",
+      "displayName": "Auvryn Studios Work and Case Studies",
+      "type": "text/html",
+      "url": "https://auvrynstudios.com/#work",
+      "description": "Public portfolio page describing Auvryn Studios' work and studio capabilities.",
+      "representativeQueries": [
+        "Where can I see Auvryn Studios' portfolio?",
+        "What types of digital experiences does Auvryn Studios build?"
+      ]
+    }
+  ]
+}
