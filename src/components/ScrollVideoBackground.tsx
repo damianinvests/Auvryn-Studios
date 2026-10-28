@@ -294,7 +294,7 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
         src={videoUrl}
         muted
         playsInline
-        preload={typeof window !== 'undefined' && window.matchMedia('(max-width: 767px), (pointer: coarse)').matches ? 'metadata' : 'auto'}
+        preload="auto"
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
           hasDecodedFrame && !isCanvasReady ? 'opacity-100' : 'opacity-0'
         }`}
