@@ -93,13 +93,17 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
 
       const duration = offscreenVideo.duration || 10;
       durationRef.current = duration;
-      // 90 frames along our custom curve
-      const totalFrames = 90;
+      // Mobile browsers have tighter memory/decoder budgets. Fewer smaller frames
+      // preserve the scroll-driven effect without allocating a desktop-sized frame cache.
+      const isMobile = window.matchMedia('(max-width: 767px), (pointer: coarse)').matches;
+      const saveData = Boolean((navigator as Navigator & { connection?: { saveData?: boolean } }).connection?.saveData);
+      const totalFrames = saveData ? 20 : isMobile ? 32 : 72;
       const extracted: ImageBitmap[] = [];
 
       const tempCanvas = document.createElement('canvas');
-      const targetWidth = Math.min(offscreenVideo.videoWidth || 960, 960);
-      const aspect = (offscreenVideo.videoHeight || 540) / (offscreenVideo.videoWidth || 960);
+      const sourceWidth = offscreenVideo.videoWidth || 960;
+      const targetWidth = Math.min(sourceWidth, saveData ? 400 : isMobile ? 560 : 960);
+      const aspect = (offscreenVideo.videoHeight || 540) / sourceWidth;
       tempCanvas.width = targetWidth;
       tempCanvas.height = Math.round(targetWidth * aspect);
       const ctx = tempCanvas.getContext('2d');
@@ -109,10 +113,20 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
       for (let i = 0; i < totalFrames; i++) {
         const normP = i / (totalFrames - 1);
         const time = getTimeForProgress(normP, duration);
-        offscreenVideo.currentTime = time;
-
+        // Register the listener before seeking; setting currentTime first can miss
+        // the seeked event on Safari/iOS and leave extraction waiting forever.
         await new Promise<void>((resolve) => {
-          offscreenVideo.onseeked = () => resolve();
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            window.clearTimeout(timeoutId);
+            offscreenVideo.removeEventListener('seeked', finish);
+            resolve();
+          };
+          const timeoutId = window.setTimeout(finish, 1800);
+          offscreenVideo.addEventListener('seeked', finish, { once: true });
+          offscreenVideo.currentTime = Math.min(time, Math.max(duration - 0.05, 0));
         });
 
         ctx.drawImage(offscreenVideo, 0, 0, tempCanvas.width, tempCanvas.height);
@@ -125,6 +139,8 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
       if (extracted.length > 0) {
         cachedFramesRef.current = extracted;
         setIsCanvasReady(true);
+        // Wake the renderer if it has gone idle while the frame cache was building.
+        window.dispatchEvent(new Event('auvryn:frames-ready'));
       }
     } catch {
       // Fallback: seek fallback operates reliably directly on video
@@ -134,113 +150,129 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
     }
   };
 
-  // Scroll listener: progress = scrollY / (scrollHeight - innerHeight)
+  // Scroll progress is sampled passively, then rendered only while moving.
+  // This avoids an always-running canvas loop on mobile devices.
   useEffect(() => {
-    const handleScroll = () => {
-      const scrollY = window.scrollY || window.pageYOffset;
-      const docHeight = document.documentElement.scrollHeight;
-      const winHeight = window.innerHeight;
-      const maxScroll = Math.max(docHeight - winHeight, 1);
-      const progress = Math.min(Math.max(scrollY / maxScroll, 0), 1);
-      targetProgressRef.current = progress;
+    let animationFrameId: number | null = null;
+    let disposed = false;
+
+    const scheduleRender = () => {
+      if (disposed || animationFrameId !== null) return;
+      animationFrameId = window.requestAnimationFrame(renderFrame);
     };
 
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    window.addEventListener('resize', handleScroll, { passive: true });
-    handleScroll();
+    const handleScroll = () => {
+      const scrollY = window.scrollY || window.pageYOffset || 0;
+      const docHeight = document.documentElement.scrollHeight;
+      // visualViewport helps keep progress stable as mobile browser chrome expands/collapses.
+      const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+      const maxScroll = Math.max(docHeight - viewportHeight, 1);
+      targetProgressRef.current = Math.min(Math.max(scrollY / maxScroll, 0), 1);
+      scheduleRender();
+    };
 
-    let animationFrameId: number;
+    const renderFrame = () => {
+      animationFrameId = null;
+      if (disposed) return;
 
-    const renderLoop = () => {
-      // Lerp smoothing: smoothed += (target - smoothed) * 0.12
       const target = targetProgressRef.current;
       const current = smoothedProgressRef.current;
+      const isMobile = window.matchMedia('(max-width: 767px), (pointer: coarse)').matches;
+      // Reduce perceived lag on touch screens so the image tracks thumb scrolling more closely.
+      const smoothing = isMobile ? 0.24 : 0.12;
       const delta = target - current;
-
-      if (Math.abs(delta) > 0.0001) {
-        smoothedProgressRef.current = current + delta * 0.12;
-      } else {
-        smoothedProgressRef.current = target;
-      }
+      smoothedProgressRef.current =
+        Math.abs(delta) > 0.0001 ? current + delta * smoothing : target;
 
       const smoothed = smoothedProgressRef.current;
       const canvas = canvasRef.current;
+      const video = videoRef.current;
 
       if (canvas) {
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const dpr = Math.min(window.devicePixelRatio || 1, isMobile ? 1.25 : 1.75);
         const displayWidth = window.innerWidth;
-        const displayHeight = window.innerHeight;
+        const displayHeight = window.visualViewport?.height ?? window.innerHeight;
+        const pixelWidth = Math.max(1, Math.round(displayWidth * dpr));
+        const pixelHeight = Math.max(1, Math.round(displayHeight * dpr));
 
-        if (canvas.width !== displayWidth * dpr || canvas.height !== displayHeight * dpr) {
-          canvas.width = displayWidth * dpr;
-          canvas.height = displayHeight * dpr;
+        if (canvas.width !== pixelWidth || canvas.height !== pixelHeight) {
+          canvas.width = pixelWidth;
+          canvas.height = pixelHeight;
         }
 
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { alpha: false });
         if (ctx) {
-          ctx.save();
-          ctx.scale(dpr, dpr);
-
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
           const frames = cachedFramesRef.current;
+          let source: CanvasImageSource | null = null;
+          let sourceWidth = 0;
+          let sourceHeight = 0;
+
           if (frames.length > 0) {
             const frameIndex = Math.min(
               frames.length - 1,
-              Math.max(0, Math.floor(smoothed * (frames.length - 1)))
+              Math.max(0, Math.round(smoothed * (frames.length - 1)))
             );
             const frame = frames[frameIndex];
-
-            // Object-cover math
-            const fw = frame.width;
-            const fh = frame.height;
-            const scale = Math.max(displayWidth / fw, displayHeight / fh);
-            const renderW = fw * scale;
-            const renderH = fh * scale;
-            const offsetX = (displayWidth - renderW) / 2;
-            const offsetY = (displayHeight - renderH) / 2;
-
-            ctx.clearRect(0, 0, displayWidth, displayHeight);
-            ctx.drawImage(frame, offsetX, offsetY, renderW, renderH);
-
-            // NO heavy dark vignette! The video is displayed crisp and bright
-          } else {
-            // Fallback: draw directly from the video if seeking
-            const video = videoRef.current;
-            if (video && video.readyState >= 2) {
-              const vw = video.videoWidth || 1280;
-              const vh = video.videoHeight || 720;
-              const scale = Math.max(displayWidth / vw, displayHeight / vh);
-              const renderW = vw * scale;
-              const renderH = vh * scale;
-              const offsetX = (displayWidth - renderW) / 2;
-              const offsetY = (displayHeight - renderH) / 2;
-
-              ctx.clearRect(0, 0, displayWidth, displayHeight);
-              ctx.drawImage(video, offsetX, offsetY, renderW, renderH);
-            }
+            source = frame;
+            sourceWidth = frame.width;
+            sourceHeight = frame.height;
+          } else if (video && video.readyState >= 2) {
+            source = video;
+            sourceWidth = video.videoWidth || 1280;
+            sourceHeight = video.videoHeight || 720;
           }
 
-          ctx.restore();
+          if (source && sourceWidth > 0 && sourceHeight > 0) {
+            const scale = Math.max(displayWidth / sourceWidth, displayHeight / sourceHeight);
+            const renderW = sourceWidth * scale;
+            const renderH = sourceHeight * scale;
+            ctx.clearRect(0, 0, displayWidth, displayHeight);
+            ctx.drawImage(source, (displayWidth - renderW) / 2, (displayHeight - renderH) / 2, renderW, renderH);
+          }
         }
       }
 
-      // If frame cache is not ready, scrub video element directly (delta > 0.04s)
-      const video = videoRef.current;
+      // Fallback while the cache is preparing. Throttle seeks to avoid hammering
+      // mobile video decoders; cached frames take over as soon as they're ready.
       if (video && cachedFramesRef.current.length === 0 && durationRef.current > 0) {
         const targetTime = getTimeForProgress(smoothed, durationRef.current);
-        if (Math.abs(video.currentTime - targetTime) > 0.04) {
+        if (Math.abs(video.currentTime - targetTime) > (isMobile ? 0.08 : 0.04)) {
           video.currentTime = targetTime;
         }
       }
 
-      animationFrameId = requestAnimationFrame(renderLoop);
+      // Keep smoothing alive only until the frame catches up with the scroll position.
+      if (Math.abs(targetProgressRef.current - smoothedProgressRef.current) > 0.0008) {
+        scheduleRender();
+      }
     };
 
-    animationFrameId = requestAnimationFrame(renderLoop);
+    const handleViewportChange = () => {
+      handleScroll();
+      scheduleRender();
+    };
+    const handleSeeked = () => scheduleRender();
+    const handleFramesReady = () => scheduleRender();
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    window.addEventListener('resize', handleViewportChange, { passive: true });
+    window.addEventListener('orientationchange', handleViewportChange, { passive: true });
+    window.addEventListener('auvryn:frames-ready', handleFramesReady);
+    window.visualViewport?.addEventListener('resize', handleViewportChange, { passive: true });
+    videoRef.current?.addEventListener('seeked', handleSeeked);
+    handleScroll();
+    scheduleRender();
 
     return () => {
+      disposed = true;
       window.removeEventListener('scroll', handleScroll);
-      window.removeEventListener('resize', handleScroll);
-      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleViewportChange);
+      window.removeEventListener('orientationchange', handleViewportChange);
+      window.removeEventListener('auvryn:frames-ready', handleFramesReady);
+      window.visualViewport?.removeEventListener('resize', handleViewportChange);
+      videoRef.current?.removeEventListener('seeked', handleSeeked);
+      if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId);
     };
   }, []);
 
@@ -262,7 +294,7 @@ export const ScrollVideoBackground: React.FC<ScrollVideoBackgroundProps> = ({
         src={videoUrl}
         muted
         playsInline
-        preload="auto"
+        preload={typeof window !== 'undefined' && window.matchMedia('(max-width: 767px), (pointer: coarse)').matches ? 'metadata' : 'auto'}
         className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
           hasDecodedFrame && !isCanvasReady ? 'opacity-100' : 'opacity-0'
         }`}
